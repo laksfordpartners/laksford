@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Command Center · Arvani + Laksford</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family:'SF Mono','JetBrains Mono',ui-monospace,Menlo,Consolas,monospace; background:#070b11; color:#c9d6e3; min-height:100vh; }
+
+  #gate { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 40%,#0d1826,#05080d); }
+  #gate .box { width:min(380px,90vw); border:1px solid #12324a; border-radius:14px; background:#0a121c; padding:30px 28px; text-align:center; box-shadow:0 0 60px rgba(56,189,248,.08); }
+  .core { width:46px; height:46px; border-radius:50%; margin:0 auto 16px; background:radial-gradient(circle at 50% 50%,#38bdf8,#0ea5e9 40%,#0b2233 70%); box-shadow:0 0 22px rgba(56,189,248,.7); animation:pulse 2.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{ box-shadow:0 0 12px rgba(56,189,248,.5);} 50%{ box-shadow:0 0 26px rgba(56,189,248,.95);} }
+  #gate h1 { font-size:15px; letter-spacing:3px; color:#e6f2ff; margin-bottom:4px; }
+  #gate p { font-size:11px; letter-spacing:1px; color:#4d7fa3; margin-bottom:20px; }
+  #gate input { width:100%; padding:11px 14px; border-radius:8px; text-align:center; background:#060b12; border:1px solid #12324a; color:#e6f2ff; font-family:inherit; font-size:14px; letter-spacing:2px; margin-bottom:12px; }
+  #gate input:focus { outline:none; border-color:#38bdf8; }
+  #gate button { width:100%; padding:11px; border-radius:8px; cursor:pointer; background:#0ea5e9; color:#04121c; border:none; font-family:inherit; font-size:13px; letter-spacing:2px; font-weight:700; }
+  #gate button:hover { background:#38bdf8; }
+  #gate button:disabled { opacity:.5; cursor:wait; }
+  #gate .err { color:#f87171; font-size:11px; height:14px; margin-top:10px; letter-spacing:1px; }
+
+  #app { display:none; padding:22px; }
+  #app.on { display:block; }
+  .wrap { max-width:1120px; margin:0 auto; }
+  header.hud { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; border:1px solid #12324a; border-radius:12px; background:linear-gradient(135deg,#0d1420,#0a1018); padding:18px 22px; margin-bottom:18px; box-shadow:inset 0 0 40px rgba(56,189,248,.04); }
+  .brand { display:flex; align-items:center; gap:14px; }
+  .brand .core { margin:0; width:42px; height:42px; }
+  h1.title { font-size:19px; letter-spacing:3px; color:#e6f2ff; font-weight:600; }
+  .sub { font-size:11px; letter-spacing:2px; color:#4d7fa3; margin-top:3px; }
+  .clock { text-align:right; }
+  .clock .t { font-size:22px; color:#7dd3fc; letter-spacing:1px; }
+  .clock .d { font-size:11px; color:#4d7fa3; letter-spacing:1px; }
+
+  .section-label { font-size:11px; letter-spacing:3px; color:#4d7fa3; text-transform:uppercase; margin:22px 4px 12px; display:flex; align-items:center; gap:10px; }
+  .section-label .live { font-size:9px; color:#4ade80; border:1px solid rgba(74,222,128,.4); border-radius:20px; padding:2px 8px; letter-spacing:1px; }
+  .section-label button { margin-left:auto; background:#0b1a26; color:#7dd3fc; border:1px solid #12324a; border-radius:6px; font-family:inherit; font-size:10px; letter-spacing:1px; padding:5px 10px; cursor:pointer; }
+  .section-label button:hover { border-color:#38bdf8; }
+
+  .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; }
+  .metric { border:1px solid #12324a; border-radius:12px; padding:16px 18px; background:linear-gradient(160deg,#0d1622,#0a1119); position:relative; overflow:hidden; }
+  .metric .scan { position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,#38bdf8,transparent); opacity:.5; }
+  .metric .l { font-size:10px; letter-spacing:1.5px; color:#4d7fa3; text-transform:uppercase; }
+  .metric .v { font-size:27px; color:#e6f2ff; margin:6px 0 2px; letter-spacing:.5px; }
+  .metric .s { font-size:11px; color:#6f93ab; }
+  .metric .v.green { color:#4ade80; }
+  .metric .v.amber { color:#f0a020; }
+  .metric .v.small { font-size:15px; }
+  .spark { margin-top:10px; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+  .card { border:1px solid #12324a; border-radius:12px; padding:18px; position:relative; overflow:hidden; background:linear-gradient(160deg,#0d1622,#0a1119); transition:border-color .2s,transform .2s; }
+  .card:hover { border-color:#1f5a80; transform:translateY(-2px); }
+  .card .scan { position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,#38bdf8,transparent); opacity:.5; }
+  .card .top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:12px; }
+  .card h2 { font-size:14px; color:#e6f2ff; letter-spacing:.4px; }
+  .role { font-size:10px; letter-spacing:1.5px; color:#f0a020; text-transform:uppercase; margin-top:5px; }
+  .badge { font-size:9.5px; letter-spacing:1px; padding:4px 9px; border-radius:20px; white-space:nowrap; text-transform:uppercase; font-weight:600; }
+  .badge.online { background:rgba(74,222,128,.12); color:#4ade80; border:1px solid rgba(74,222,128,.35); }
+  .badge.paused { background:rgba(148,163,184,.1); color:#94a3b8; border:1px solid rgba(148,163,184,.3); }
+  .dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; }
+  .dot.g { background:#4ade80; box-shadow:0 0 7px #4ade80; }
+  .dot.s { background:#94a3b8; }
+  .desc { font-size:12px; color:#8ba3b8; line-height:1.5; margin-bottom:14px; min-height:52px; }
+  .meta { display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:11px; border-top:1px solid #10283a; padding-top:12px; }
+  .meta .k { color:#4d7fa3; }
+  .meta .v { color:#b8ccdd; text-align:right; }
+  footer { margin-top:24px; text-align:center; font-size:10px; letter-spacing:1px; color:#35566b; line-height:1.7; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="box">
+    <div class="core"></div>
+    <h1>COMMAND CENTER</h1>
+    <p>RESTRICTED ACCESS</p>
+    <input id="pw" type="password" placeholder="ENTER PASSCODE" autocomplete="off" />
+    <button id="enter">UNLOCK</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="wrap">
+    <header class="hud">
+      <div class="brand">
+        <div class="core"></div>
+        <div>
+          <h1 class="title">COMMAND CENTER</h1>
+          <div class="sub">AUTONOMOUS AGENT NETWORK · ARVANI + LAKSFORD</div>
+        </div>
+      </div>
+      <div class="clock"><div class="t" id="clock">--:--:--</div><div class="d" id="date">—</div></div>
+    </header>
+
+    <div class="section-label">
+      Laksford Partners · Walmart Marketplace
+      <span class="live">● LIVE</span>
+      <button id="refresh-wm">↻ REFRESH</button>
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="scan"></div><div class="l">New Orders (Month)</div><div class="v amber" id="wm-orders">—</div><div class="s" id="wm-orders-s">loading…</div></div>
+      <div class="metric"><div class="scan"></div><div class="l">Monthly GMV</div><div class="v amber" id="wm-mgmv">—</div><div class="s">month-to-date</div></div>
+      <div class="metric"><div class="scan"></div><div class="l">Yearly GMV</div><div class="v amber" id="wm-ygmv">—</div><div class="s" id="wm-ygmv-s">year-to-date</div></div>
+      <div class="metric"><div class="scan"></div><div class="l">Last Sync</div><div class="v small" id="wm-sync">—</div><div class="s" id="wm-status">connecting to Walmart…</div></div>
+    </div>
+
+    <div class="section-label">Arvani Storefront · Shopify <span class="live" style="color:#7dd3fc;border-color:rgba(125,211,252,.4)">SNAPSHOT · Jul 9</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="scan"></div><div class="l">New Orders</div><div class="v">1</div><div class="s">this month · 11 YTD</div></div>
+      <div class="metric"><div class="scan"></div><div class="l">Monthly GMV (Jul)</div><div class="v green">$1</div><div class="s">month-to-date</div></div>
+      <div class="metric"><div class="scan"></div><div class="l">Yearly GMV (2026)</div><div class="v green">$5,218</div><div class="s">gross · $4,527 net</div></div>
+      <div class="metric"><div class="scan"></div><div class="l">Visitors · Last 7 Days</div><div class="v">616</div><div class="s">654 sessions</div><div class="spark" id="spark"></div></div>
+    </div>
+
+    <div class="section-label">Agent Roster</div>
+    <div class="grid" id="grid"></div>
+
+    <footer>
+      Walmart section = live via serverless backend · Shopify section = static snapshot (captured 2026-07-09)<br>
+      Passcode verified server-side · credentials stored only in Netlify environment variables
+    </footer>
+  </div>
+</div>
+
+<script>
+  const VISITORS_7D = [231,148,62,20,22,25,91,33];
+  const AGENTS = [
+    { name:"Checkout Closer", role:"Recovery Specialist", online:true, desc:"Finds abandoned checkouts + Zoom no-shows daily and drafts approval-ready recovery nudges (never auto-sends).", schedule:"3×/day · 10a, 2p, 7p", last:"today" },
+    { name:"Organic Growth", role:"Outreach Specialist", online:true, desc:"Daily organic lead-gen for arvani305 — posts content, engages communities, tracks what's working.", schedule:"Daily · 9:09a", last:"today" },
+    { name:"Laksford Lead-Gen", role:"Outreach Specialist", online:true, desc:"Researches 8–12 fit prospects daily across Laksford's five niches; compiles an approval-ready lead list.", schedule:"Daily · 8:07a", last:"pending first run" },
+    { name:"TDSynnex Scout", role:"Sourcing / Arbitrage", online:true, desc:"Nightly TD Synnex product scrape + Amazon/Walmart profitability analysis.", schedule:"Daily · 2:04a", last:"today" },
+    { name:"LuxoRoyal Lead Gen", role:"Outreach Specialist", online:false, desc:"One-time organic lead-gen push to drive traffic to luxoroyal.com.", schedule:"One-time (complete)", last:"Jun 16" }
+  ];
+
+  let PASS = "";
+
+  function fmtMoney(n, cur){
+    if (n === null || n === undefined || isNaN(n)) return "—";
+    const sym = cur === "USD" ? "$" : (cur ? cur + " " : "$");
+    return sym + Number(n).toLocaleString(undefined,{maximumFractionDigits:0});
+  }
+  function clock(){
+    const n=new Date(), p=x=>String(x).padStart(2,'0'), c=document.getElementById('clock'); if(!c) return;
+    c.textContent=p(n.getHours())+':'+p(n.getMinutes())+':'+p(n.getSeconds());
+    document.getElementById('date').textContent=n.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'}).toUpperCase();
+  }
+  setInterval(clock,1000);
+
+  function sparkline(){
+    const w=210,h=40,pad=3, vals=VISITORS_7D, max=Math.max(...vals), min=Math.min(...vals), rng=(max-min)||1;
+    const step=(w-pad*2)/(vals.length-1);
+    const pts=vals.map((v,i)=>[pad+i*step, h-pad-((v-min)/rng)*(h-pad*2)]);
+    const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+    const area=line+` L ${pts[pts.length-1][0].toFixed(1)} ${h-pad} L ${pts[0][0].toFixed(1)} ${h-pad} Z`;
+    return `<svg width="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8" stop-opacity=".35"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#g)"/><path d="${line}" fill="none" stroke="#7dd3fc" stroke-width="1.6"/><circle cx="${pts[pts.length-1][0].toFixed(1)}" cy="${pts[pts.length-1][1].toFixed(1)}" r="2.6" fill="#e6f2ff"/></svg>`;
+  }
+
+  async function loadWalmart(){
+    const statusEl=document.getElementById('wm-status');
+    statusEl.textContent="connecting to Walmart…";
+    try {
+      const res = await fetch('/.netlify/functions/walmart?key='+encodeURIComponent(PASS));
+      if (res.status === 401){ statusEl.textContent="auth rejected"; return; }
+      const data = await res.json();
+      if (data.error){
+        document.getElementById('wm-sync').textContent="ERROR";
+        statusEl.textContent = data.error + (data.detail ? " · "+String(data.detail).slice(0,60) : "");
+        return;
+      }
+      document.getElementById('wm-orders').textContent = data.newOrdersThisMonth ?? "—";
+      document.getElementById('wm-orders-s').textContent = (data.yearlyOrders ?? "—") + " YTD";
+      document.getElementById('wm-mgmv').textContent = fmtMoney(data.monthlyGMV, data.currency);
+      document.getElementById('wm-ygmv').textContent = fmtMoney(data.yearlyGMV, data.currency);
+      const t = data.lastUpdated ? new Date(data.lastUpdated) : new Date();
+      document.getElementById('wm-sync').textContent = t.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+      statusEl.textContent = "synced " + t.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+    } catch(e){
+      document.getElementById('wm-sync').textContent="OFFLINE";
+      statusEl.textContent="could not reach backend";
+    }
+  }
+
+  function render(){
+    clock();
+    document.getElementById('spark').innerHTML = sparkline();
+    document.getElementById('grid').innerHTML = AGENTS.map(a=>`
+      <div class="card">
+        <div class="scan" style="${a.online?'':'opacity:.15'}"></div>
+        <div class="top"><div><h2>${a.name}</h2><div class="role">${a.role}</div></div>
+          <span class="badge ${a.online?'online':'paused'}"><span class="dot ${a.online?'g':'s'}"></span>${a.online?'Online':'Paused'}</span></div>
+        <div class="desc">${a.desc}</div>
+        <div class="meta"><span class="k">Schedule</span><span class="v">${a.schedule}</span><span class="k">Last run</span><span class="v">${a.last}</span></div>
+      </div>`).join('');
+    loadWalmart();
+  }
+
+  async function unlock(){
+    const btn=document.getElementById('enter'), val=document.getElementById('pw').value.trim();
+    if(!val){ return; }
+    btn.disabled=true; document.getElementById('err').textContent="";
+    // Validate password against the server (also fetches Walmart data).
+    try {
+      const res = await fetch('/.netlify/functions/walmart?key='+encodeURIComponent(val));
+      if (res.status === 401){
+        document.getElementById('err').textContent="ACCESS DENIED";
+        document.getElementById('pw').value=""; btn.disabled=false; return;
+      }
+      PASS = val;
+      document.getElementById('gate').style.display='none';
+      document.getElementById('app').classList.add('on');
+      render();
+    } catch(e){
+      document.getElementById('err').textContent="BACKEND UNREACHABLE";
+      btn.disabled=false;
+    }
+  }
+  document.getElementById('enter').addEventListener('click', unlock);
+  document.getElementById('pw').addEventListener('keydown', e=>{ if(e.key==='Enter') unlock(); });
+  document.getElementById('refresh-wm').addEventListener('click', loadWalmart);
+  document.getElementById('pw').focus();
+</script>
+</body>
+</html>
