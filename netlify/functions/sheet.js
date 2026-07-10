@@ -96,6 +96,32 @@ function extractOrders(rows) {
 
 // --- Google auth (service account → OAuth2 access token, no npm deps) -------
 
+// Rebuild a clean PEM no matter how the key survived copy/paste into env vars:
+// handles surrounding quotes, literal "\n"/"\r", missing line breaks, and CRLF.
+function normalizePrivateKey(raw) {
+  let k = String(raw || "").trim();
+  // Strip a single layer of wrapping quotes if present.
+  if (
+    (k.startsWith('"') && k.endsWith('"')) ||
+    (k.startsWith("'") && k.endsWith("'"))
+  ) {
+    k = k.slice(1, -1);
+  }
+  // Turn escaped sequences into real characters, drop CRs.
+  k = k.replace(/\\r/g, "").replace(/\\n/g, "\n").replace(/\r/g, "");
+  // Reconstruct the PEM from the base64 body so wrapping is always valid.
+  const m = k.match(/-----BEGIN ([A-Z0-9 ]+?)-----([\s\S]*?)-----END \1-----/);
+  if (m) {
+    const label = m[1].trim();
+    const body = m[2].replace(/[^A-Za-z0-9+/=]/g, ""); // keep base64 chars only
+    if (body) {
+      const wrapped = body.match(/.{1,64}/g).join("\n");
+      k = `-----BEGIN ${label}-----\n${wrapped}\n-----END ${label}-----\n`;
+    }
+  }
+  return k;
+}
+
 const b64url = (buf) =>
   Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
@@ -157,7 +183,7 @@ async function batchGetValues(token, sheetId, tabs) {
 
 // --- handler ---------------------------------------------------------------
 
-exports._test = { extractOrders, findHeaderIndex, colIndex, parseRowDate };
+exports._test = { extractOrders, findHeaderIndex, colIndex, parseRowDate, normalizePrivateKey };
 
 exports.handler = async (event) => {
   const okPw = process.env.DASHBOARD_PASSWORD;
@@ -178,7 +204,7 @@ exports.handler = async (event) => {
       }),
     };
   }
-  const privateKey = rawKey.replace(/\\n/g, "\n");
+  const privateKey = normalizePrivateKey(rawKey);
 
   try {
     const token = await getAccessToken(email, privateKey);
