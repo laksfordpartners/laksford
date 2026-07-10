@@ -73,6 +73,7 @@ function extractOrders(rows) {
   const iDate = colIndex(header, ["date"]);
   const iGmv = colIndex(header, ["walmart sale price ($)", "walmart sale price", "sale price"]);
   const iNet = colIndex(header, ["net revenue ($)", "net revenue"]);
+  const iProfit = colIndex(header, ["net profit ($)", "net profit"]);
   const iId = colIndex(header, ["walmart order id", "order id"]);
   if (iDate === -1) return [];
 
@@ -84,10 +85,12 @@ function extractOrders(rows) {
     if (!d) continue;
     const gmv = iGmv !== -1 ? toNumber(row[iGmv]) : NaN;
     const net = iNet !== -1 ? toNumber(row[iNet]) : NaN;
+    const profit = iProfit !== -1 ? toNumber(row[iProfit]) : NaN;
     out.push({
       date: d,
       gmv: isNaN(gmv) ? 0 : gmv,
       net: isNaN(net) ? 0 : net,
+      profit: isNaN(profit) ? 0 : profit,
       id: iId !== -1 ? String(row[iId] || "").trim() : "",
     });
   }
@@ -233,24 +236,38 @@ exports.handler = async (event) => {
     const now = new Date();
     const year = now.getUTCFullYear();
     const month = now.getUTCMonth();
+    const round2 = (n) => Math.round(n * 100) / 100;
 
-    let yearlyGMV = 0, monthlyGMV = 0, netRevenue = 0, yearlyOrders = 0, newOrdersThisMonth = 0;
+    const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const months = MONTHS.map((m) => ({ label: m, revenue: 0, profit: 0, orders: 0 }));
+    const quarters = [0, 1, 2, 3].map((q) => ({ label: "Q" + (q + 1), revenue: 0, profit: 0, orders: 0 }));
+
+    let yearlyGMV = 0, monthlyGMV = 0, netRevenue = 0, yearProfit = 0;
+    let yearlyOrders = 0, newOrdersThisMonth = 0;
+
     for (const o of orders) {
       if (o.date.getUTCFullYear() !== year) continue;
+      const mi = o.date.getUTCMonth();
+      const qi = Math.floor(mi / 3);
       yearlyOrders++;
       yearlyGMV += o.gmv;
       netRevenue += o.net;
-      if (o.date.getUTCMonth() === month) {
-        newOrdersThisMonth++;
-        monthlyGMV += o.gmv;
-      }
+      yearProfit += o.profit;
+      months[mi].revenue += o.net; months[mi].profit += o.profit; months[mi].orders++;
+      quarters[qi].revenue += o.net; quarters[qi].profit += o.profit; quarters[qi].orders++;
+      if (mi === month) { newOrdersThisMonth++; monthlyGMV += o.gmv; }
     }
-    const round2 = (n) => Math.round(n * 100) / 100;
+
+    const clean = (arr) =>
+      arr.map((x) => ({ ...x, revenue: round2(x.revenue), profit: round2(x.profit) }));
+    const thisMonth = months[month];
+    const thisQuarter = quarters[Math.floor(month / 3)];
 
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
       body: JSON.stringify({
+        // existing fields (unchanged) — power the top GMV row
         newOrdersThisMonth,
         monthlyGMV: round2(monthlyGMV),
         yearlyGMV: round2(yearlyGMV),
@@ -259,6 +276,25 @@ exports.handler = async (event) => {
         currency: "USD",
         lastUpdated: now.toISOString(),
         source: "google-sheet (service account)",
+        // new: revenue & profit breakdown (net revenue / net profit)
+        year,
+        revenueProfit: {
+          thisMonth: {
+            label: MONTHS[month] + " " + year,
+            revenue: round2(thisMonth.revenue),
+            profit: round2(thisMonth.profit),
+            orders: thisMonth.orders,
+          },
+          thisQuarter: {
+            label: thisQuarter.label + " " + year,
+            revenue: round2(thisQuarter.revenue),
+            profit: round2(thisQuarter.profit),
+            orders: thisQuarter.orders,
+          },
+          ytd: { revenue: round2(netRevenue), profit: round2(yearProfit), orders: yearlyOrders },
+          months: clean(months).filter((m) => m.orders > 0),
+          quarters: clean(quarters).filter((q) => q.orders > 0),
+        },
       }),
     };
   } catch (e) {
