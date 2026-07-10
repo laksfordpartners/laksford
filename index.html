@@ -97,7 +97,7 @@
     </header>
 
     <div class="section-label">
-      Laksford Partners · Walmart Marketplace
+      Laksford Partners · Walmart (via Google Sheet)
       <span class="live">● LIVE</span>
       <button id="refresh-wm">↻ REFRESH</button>
     </div>
@@ -105,7 +105,7 @@
       <div class="metric"><div class="scan"></div><div class="l">New Orders (Month)</div><div class="v amber" id="wm-orders">—</div><div class="s" id="wm-orders-s">loading…</div></div>
       <div class="metric"><div class="scan"></div><div class="l">Monthly GMV</div><div class="v amber" id="wm-mgmv">—</div><div class="s">month-to-date</div></div>
       <div class="metric"><div class="scan"></div><div class="l">Yearly GMV</div><div class="v amber" id="wm-ygmv">—</div><div class="s" id="wm-ygmv-s">year-to-date</div></div>
-      <div class="metric"><div class="scan"></div><div class="l">Last Sync</div><div class="v small" id="wm-sync">—</div><div class="s" id="wm-status">connecting to Walmart…</div></div>
+      <div class="metric"><div class="scan"></div><div class="l">Last Sync</div><div class="v small" id="wm-sync">—</div><div class="s" id="wm-status">reading Google Sheet…</div></div>
     </div>
 
     <div class="section-label">Arvani Storefront · Shopify <span class="live" style="color:#7dd3fc;border-color:rgba(125,211,252,.4)">SNAPSHOT · Jul 9</span></div>
@@ -120,8 +120,8 @@
     <div class="grid" id="grid"></div>
 
     <footer>
-      Walmart section = live via serverless backend · Shopify section = static snapshot (captured 2026-07-09)<br>
-      Passcode verified server-side · credentials stored only in Netlify environment variables
+      Laksford section = live from your Google Sheet (Internal Revenue &amp; Margin Tracker) · Shopify section = static snapshot (captured 2026-07-09)<br>
+      Passcode verified server-side · Sheet links + passcode stored only in Netlify environment variables
     </footer>
   </div>
 </div>
@@ -161,14 +161,14 @@
 
   async function loadWalmart(){
     const statusEl=document.getElementById('wm-status');
-    statusEl.textContent="connecting to Walmart…";
+    statusEl.textContent="reading Google Sheet…";
     try {
-      const res = await fetch('/.netlify/functions/walmart?key='+encodeURIComponent(PASS));
+      const res = await fetch('/.netlify/functions/sheet?key='+encodeURIComponent(PASS));
       if (res.status === 401){ statusEl.textContent="auth rejected"; return; }
       const data = await res.json();
       if (data.error){
         document.getElementById('wm-sync').textContent="ERROR";
-        statusEl.textContent = data.error + (data.detail ? " · "+String(data.detail).slice(0,60) : "");
+        statusEl.textContent = data.error + (data.hint ? " · "+String(data.hint).slice(0,70) : (data.detail ? " · "+String(data.detail).slice(0,60) : ""));
         return;
       }
       document.getElementById('wm-orders').textContent = data.newOrdersThisMonth ?? "—";
@@ -202,9 +202,9 @@
     const btn=document.getElementById('enter'), val=document.getElementById('pw').value.trim();
     if(!val){ return; }
     btn.disabled=true; document.getElementById('err').textContent="";
-    // Validate password against the server (also fetches Walmart data).
+    // Validate password against the server (also fetches the Sheet data).
     try {
-      const res = await fetch('/.netlify/functions/walmart?key='+encodeURIComponent(val));
+      const res = await fetch('/.netlify/functions/sheet?key='+encodeURIComponent(val));
       if (res.status === 401){
         document.getElementById('err').textContent="ACCESS DENIED";
         document.getElementById('pw').value=""; btn.disabled=false; return;
