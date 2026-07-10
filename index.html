@@ -67,6 +67,18 @@
   .meta { display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:11px; border-top:1px solid #10283a; padding-top:12px; }
   .meta .k { color:#4d7fa3; }
   .meta .v { color:#b8ccdd; text-align:right; }
+  .breakdown { margin-top:14px; display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:760px){ .breakdown { grid-template-columns:1fr; } }
+  .bd { border:1px solid #12324a; border-radius:12px; background:linear-gradient(160deg,#0d1622,#0a1119); overflow:hidden; }
+  .bd h3 { font-size:10px; letter-spacing:2px; color:#4d7fa3; text-transform:uppercase; padding:12px 16px; border-bottom:1px solid #10283a; }
+  table.rp { width:100%; border-collapse:collapse; font-size:12px; }
+  table.rp th, table.rp td { padding:8px 16px; text-align:right; }
+  table.rp th { color:#4d7fa3; font-weight:normal; font-size:9.5px; letter-spacing:1px; text-transform:uppercase; border-bottom:1px solid #10283a; }
+  table.rp td:first-child, table.rp th:first-child { text-align:left; color:#b8ccdd; }
+  table.rp tbody tr:nth-child(even){ background:rgba(255,255,255,.02); }
+  table.rp td.rev { color:#4ade80; }
+  table.rp td.prof { color:#e6f2ff; }
+  table.rp tfoot td { border-top:1px solid #10283a; color:#7dd3fc; font-weight:600; }
   footer { margin-top:24px; text-align:center; font-size:10px; letter-spacing:1px; color:#35566b; line-height:1.7; }
 </style>
 </head>
@@ -108,6 +120,15 @@
       <div class="metric"><div class="scan"></div><div class="l">Last Sync</div><div class="v small" id="wm-sync">—</div><div class="s" id="wm-status">reading Google Sheet…</div></div>
     </div>
 
+    <div class="section-label">Laksford · Revenue &amp; Profit <span class="live" style="color:#a78bfa;border-color:rgba(167,139,250,.45)">NET · FROM SHEET</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="scan"></div><div class="l">This Quarter · Revenue</div><div class="v green" id="rp-q-rev">—</div><div class="s" id="rp-q-lab">quarter-to-date</div></div>
+      <div class="metric"><div class="scan"></div><div class="l">This Quarter · Profit</div><div class="v green" id="rp-q-prof">—</div><div class="s" id="rp-q-orders">—</div></div>
+      <div class="metric"><div class="scan"></div><div class="l">This Month · Revenue</div><div class="v green" id="rp-m-rev">—</div><div class="s" id="rp-m-lab">month-to-date</div></div>
+      <div class="metric"><div class="scan"></div><div class="l">This Month · Profit</div><div class="v green" id="rp-m-prof">—</div><div class="s" id="rp-m-orders">—</div></div>
+    </div>
+    <div class="breakdown" id="rp-breakdown"></div>
+
     <div class="section-label">Arvani Storefront · Shopify <span class="live" style="color:#7dd3fc;border-color:rgba(125,211,252,.4)">SNAPSHOT · Jul 9</span></div>
     <div class="metrics">
       <div class="metric"><div class="scan"></div><div class="l">New Orders</div><div class="v">1</div><div class="s">this month · 11 YTD</div></div>
@@ -141,7 +162,26 @@
   function fmtMoney(n, cur){
     if (n === null || n === undefined || isNaN(n)) return "—";
     const sym = cur === "USD" ? "$" : (cur ? cur + " " : "$");
-    return sym + Number(n).toLocaleString(undefined,{maximumFractionDigits:0});
+    const v = Number(n), sign = v < 0 ? "-" : "";
+    return sign + sym + Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
+  }
+
+  function renderRevenueProfit(rp, cur){
+    if(!rp) return;
+    const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+    const cls=(id,neg)=>{ const el=document.getElementById(id); if(el){ el.classList.toggle('amber',!!neg); el.classList.toggle('green',!neg); } };
+    set('rp-q-rev', fmtMoney(rp.thisQuarter.revenue,cur));
+    set('rp-q-prof', fmtMoney(rp.thisQuarter.profit,cur)); cls('rp-q-prof', rp.thisQuarter.profit<0);
+    set('rp-q-lab', (rp.thisQuarter.label||'')+' · quarter-to-date');
+    set('rp-q-orders', (rp.thisQuarter.orders||0)+' orders');
+    set('rp-m-rev', fmtMoney(rp.thisMonth.revenue,cur));
+    set('rp-m-prof', fmtMoney(rp.thisMonth.profit,cur)); cls('rp-m-prof', rp.thisMonth.profit<0);
+    set('rp-m-lab', (rp.thisMonth.label||'')+' · month-to-date');
+    set('rp-m-orders', (rp.thisMonth.orders||0)+' orders');
+    const rows=(arr)=>(arr||[]).map(x=>`<tr><td>${x.label}</td><td>${x.orders}</td><td class="rev">${fmtMoney(x.revenue,cur)}</td><td class="prof">${fmtMoney(x.profit,cur)}</td></tr>`).join('');
+    const table=(title,arr,foot)=>`<div class="bd"><h3>${title}</h3><table class="rp"><thead><tr><th>Period</th><th>Orders</th><th>Revenue</th><th>Profit</th></tr></thead><tbody>${rows(arr)}</tbody>${foot?`<tfoot><tr><td>YTD ${rp.thisMonth.label?rp.thisMonth.label.split(' ')[1]:''}</td><td>${foot.orders}</td><td class="rev">${fmtMoney(foot.revenue,cur)}</td><td class="prof">${fmtMoney(foot.profit,cur)}</td></tr></tfoot>`:''}</table></div>`;
+    const bd=document.getElementById('rp-breakdown');
+    if(bd) bd.innerHTML = table('By Quarter', rp.quarters, rp.ytd) + table('By Month', rp.months, rp.ytd);
   }
   function clock(){
     const n=new Date(), p=x=>String(x).padStart(2,'0'), c=document.getElementById('clock'); if(!c) return;
@@ -178,6 +218,7 @@
       const t = data.lastUpdated ? new Date(data.lastUpdated) : new Date();
       document.getElementById('wm-sync').textContent = t.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
       statusEl.textContent = "synced " + t.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      renderRevenueProfit(data.revenueProfit, data.currency);
     } catch(e){
       document.getElementById('wm-sync').textContent="OFFLINE";
       statusEl.textContent="could not reach backend";
